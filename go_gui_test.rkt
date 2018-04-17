@@ -33,11 +33,11 @@
 (define stone-choice (above (crop 0 0 80 40 (circle 40 "solid" "black"))
                             (crop 0 40 80 40 (circle 40 "solid" "white"))))
 (define player-choice (above (text/font "1 PLAYER" 20 "black"
-                                   "Gill Sans" "modern" "normal"
-                                   "bold" #f)
-                              (text/font "2 PLAYER" 20 "black"
-                                   "Gill Sans" "modern" "normal"
-                                   "bold" #f)))
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)
+                             (text/font "2 PLAYER" 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This function generates the best possible move given the board_pos and for the
@@ -147,18 +147,16 @@
       (overlay/offset
        player-choice
        0 -50
-       (overlay/offset
-        pick-color-text 0 50
-        (overlay
-         (rectangle 350 350
-                    "outline"
-                    "black")
-         (overlay/offset
-          go-text 0 135
-          (empty-scene
-           400 400
-           (color 220 179 92)))))))
-    
+       (overlay
+        (rectangle 350 350
+                   "outline"
+                   "black")
+        (overlay/offset
+         go-text 0 135
+         (empty-scene
+          400 400
+          (color 220 179 92))))))
+
     (define (to_draw_pick_col)
       (overlay/offset
        stone-choice
@@ -219,5 +217,5 @@
     [else board]))
 
 (big-bang go_board
-(to-draw render)
-(on-mouse try_mouse))
+  (to-draw render)
+  (on-mouse try_mouse))
