@@ -103,7 +103,6 @@
                                         "Gill Sans" "modern" "normal"
                                         "bold" #f)))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This function generates the best possible move given the board_pos and for the
 ;clr(1 for white and 2 black)
@@ -126,13 +125,11 @@
 
 (define board_state%
   (class object%
-    
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;Board representation
     ;0 -> No stone present
     ;1 -> White Stone
     ;2 -> Black Stone
-    ;(define board_pos (2d_vec_init size size 0))
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;Stores the moves such that we can get the latest move by (car moves)
     ;The moves are of the form (cx, cy, ply) where plyr is 1 or 2
