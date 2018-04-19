@@ -1,0 +1,1 @@
+gcc -shared -o libpatterns.so connections.o helpers.o transform.o conn.o patterns.o apatterns.o dpatterns.o eyes.o influence.o barriers.o endgame.o aa_attackpat.o owl_attackpat.o owl_vital_apat.o owl_defendpat.o fusekipat.o fuseki9.o fuseki13.o fuseki19.o josekidb.o handipat.o oraclepat.o mcpat.o 
