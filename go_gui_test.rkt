@@ -8,7 +8,7 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 
-(define-ffi-definer define-master (ffi-lib "/home/sumitc/CS152/Project/go-racket/gnugo-3.8/engine/libmaster"))
+(define-ffi-definer define-master (ffi-lib "./libmaster"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Definitions of functions exported from gnugo 
