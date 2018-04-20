@@ -3,7 +3,7 @@
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (define-ffi-definer define-master (ffi-lib "/home/sumitc/CS152/Project/go-racket/gnugo-3.8/engine/libmaster"))
-(require board_utilities)
+(require "board_utilities.rkt")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Definitions of functions exported from gnugo 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -41,37 +41,74 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master try_move (_fun _int _int _int -> _int))
 
-(define visited-states null)
-
 (define total-moves 0)
 
-(define (run-simulation init time player)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Once the subtree to be explored has been
+;; decided, we explore that subtree through a
+;;(sort of) random  playout, based on some
+;; heuristics. Once we have explored to a
+;; substantial depth, we check which player has
+;; greater territory. We grant the player with
+;; larger territory the win.
+;; @param : init-board (starting state for sim)
+;;          init-move (move made to reach this
+;;                     state)
+;;          init-player (who made this move)
+;;          time (how long to run playout)
+;; @return : territory of each player after
+;;           playout.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(clear_board)
+
+(define (run-simulation init-board init-player init-move time)
   (define depth 0)
   (define start-time (current-inexact-milliseconds))
-  (define current-board init)
+  (define current-board init-board)
+  (define current-move init-move)
+  (define current-player init-player)
   (define (run)
-    (define (similarity-with-old-board)
-      (cond ((null? visited-states) #f)
-            (else (let ((similar? (foldl () #f visited-states)))
-                    (begin (if (not similar?) (cons (value of result of run) visited-states))
-                           similar?)))))
-    (define (gen-next-board)
+    (define (gen-next-board stone)
+      (define (hamming-move i)
+        (cond ((= i 0) #f)
+              (else
+               (let* ((rel-x (- (random 6) 2))
+                      (rel-y (- (random 6) 2))
+                      (x (car current-move))
+                      (y (cdr current-move))
+                      (pos (+ (* 9 (+ x rel-x)) (+ y rel-y))))
+                 (cond ((not (on-board? pos)) (hamming-move (sub1 i)))
+                       (else (let ((play (try_move (+ x rel-x) (+ y rel-y) stone)))
+                               (cond ((= play 1) (begin
+                                                   (set! current-move
+                                                         (cons (+ rel-x x)
+                                                               (+ rel-y y)))
+                                                   #t))
+                                     (else (hamming-move (sub1 i) stone))))))))))
+
+      (define (random-move)
+        (let* ((x (random 9))
+               (y (random 9))
+               (play (try_move x y stone)))
+          (cond ((= play 1) (set! current-move (cons x y)))
+                (else (random-move)))))
+      
       (let ((rand (random)))
-        (cond ((> 0.2 rand) 111);; Find and play legal move within three hamming distance.
-              ((and (> (+ total-moves depth) 20)
-                    (> rand 0.2) (> 0.3 rand)) 111);;; Find and play random move not in the first two
-              (else )))) ;;; Find and play random move anywhere
+        (cond ((> 0.3 rand) (if (hamming-move 25) (void) (random-move)))
+              (else (random-move)))))
+
+    (define (update-current-board)
+      (set! current-board
+            (build-list size
+                        (lambda (x) (build-list size (lambda (y) (board_pos x y)))))))
+    
     (cond ((> (- (current-inexact-milliseconds) start-time) time)
-           (let ((terr (count-territories current-board)))
-             (cond ((= player 1) (if (> (car terr) (cdr terr)) 1 0))
-                   ((= player 2) (if (< (car terr) (cdr terr)) 1 0)))))
-          (else (begin (gen-next-board)
+           (count-territories current-board))
+          (else (begin (gen-next-board current-player)
                        (update-current-board)
                        (set! depth (add1 depth))
-                       (cond (;;; Traverse the table to find a similar config which
-                              ;;; has a one in it. If not, If all are very far then add
-                              ;;; this board to the set and run
-                              ))))))
+                       (set! current-player (if (= current-player 1) 2 1))
+                       (run)))))
   (define (restore i)
     (cond ((>= i depth) (void))
           (else (undo_previous_move))))

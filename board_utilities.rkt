@@ -1,4 +1,7 @@
 #lang racket
+
+(provide (all-defined-out))
+
 (define size 9)
 
 (define (on-board? num)
