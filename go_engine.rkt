@@ -53,7 +53,7 @@
                (play (try_move x y stone)))
           (cond ((= play 1) (set! current-move (cons x y)))
                 (else (random-move)))))
-      
+
       (let ((rand (random)))
         (cond ((> 0.3 rand) (if (hamming-move 25) (void) (random-move)))
               (else (random-move)))))
@@ -62,7 +62,7 @@
       (set! current-board
             (build-list size
                         (lambda (x) (build-list size (lambda (y) (board_pos x y)))))))
-    
+
     (cond ((> (- (current-inexact-milliseconds) start-time) time)
            (count-territories current-board))
           (else (begin (gen-next-board current-player)
@@ -84,7 +84,30 @@
 ;node trying to optimize(black is 2 and white is 1)
 ;select refers to the best branch which optimizes the turn
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct mm-node (turn select sub-trees wsc bsc move))
+(struct mm_node (turn select sub-trees wsc bsc move))
+
+
+(define (generate-move last-move)
+    (let* ((x (random 9))
+       (y (random 9)))
+       (cons x y)))
+
+(define (getcapture board_pos)
+  0)
+
+(define (next-turn turn)
+  (if (= turn 1) 2 1))
+
+(define (best-branch li turn)
+  (define (helper curr best-till)
+    (if (= turn 1)
+        (if (< (car best-till) (mm_node-wsc curr))
+            (cons (mm_node-wsc curr) (cons (mm_node-bsc curr) curr))
+            best-till)
+        (if (< (cadr best-till) (mm_node-bsc curr))
+            (cons (mm_node-wsc curr) (cons (mm_node-bsc curr) curr))
+            best-till)))
+    (foldr helper (cons -1 (cons -1 0)) li))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;The function which build as mini-max tree and returns it
@@ -101,7 +124,7 @@
   (define capture_points 1)
   (define num-tries 0)
   (define branching-fac 5)
-  (define max-num-tries (* 3 branching-fac))
+  (define max-num-tries (* 10 branching-fac))
   (define moves-tried '())
   (define sub-trees '())
   (define (terr-counter)
@@ -109,19 +132,19 @@
         ([terrs (count-territories board_pos)]
          [wt (+ (* capture_points wc) (car terrs))]
          [bt (+ (* capture_points bc) (cdr terrs))])
-      (mm-node turn -1 '() wt bt last-move)))
+      (mm_node turn -1 '() wt bt last-move)))
   (define (helper iter)
     (begin
       (set! num-tries (+ 1 num-tries))
       (cond
         [(> num-tries max-num-tries) (terr-counter)]
-        [(<= iter branching-fac) 
+        [(<= iter branching-fac)
          (let*
              ([move (generate-move last-move)])
            (if (equal? (member move moves-tried) #f)
                (let*
-                   ([set! moves-tried (cons move moves-tried)]
-                    [retval (try-move board_pos turn move)])
+                   ([tmp (set! moves-tried (cons move moves-tried))]
+                    [retval (try_move board_pos turn move)])
                  (if (= retval 1)
                      (let*
                          ([wc-new (getcapture 1 board_pos)]
@@ -130,7 +153,7 @@
                           [tree (build-minimax wc-new bc-new turn-new max-depth
                                                (+ curr-depth 1) move)]
                           [tmp (set! sub-trees (cons tree sub-trees))]
-                          [tmp (undo board_pos)])
+                          [tmp (undo_previous_move board_pos)])
                        (helper (+ iter 1)))
                      (helper iter)))
                (helper iter)))]
@@ -140,11 +163,8 @@
               [wsc (car best)]
               [bsc (cadr best)]
               [select (cddr best)])
-           (mm-node turn select sub-trees wsc bsc move))])))
+           (mm_node turn select sub-trees wsc bsc last-move))])))
 
   (cond
     [(= curr-depth max-depth) (terr-counter)]
     [else (helper 1)]))
-
-
-  
