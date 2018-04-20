@@ -1,8 +1,5 @@
 #lang racket
 
-(require 2htdp/universe)
-(require 2htdp/image)
-
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require 2htdp/image)
@@ -58,7 +55,7 @@
 ;; the board.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define min-xy 25)
-(define max-xy 375)
+(define max-xy 353)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Converts the coordinates of
@@ -86,8 +83,14 @@
 (define xhp2 220)
 (define ylp2 255)
 (define yhp2 275)
-(define board-img (scale (/ 400 2209) (bitmap "Go_board_9x9.png")))
-(define stone-radius 20)
+(define undo-pass (beside (text/font "Undo        " 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)
+                             (text/font "      Pass" 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)))
+(define board-img (above (scale (/ 380 2209) (bitmap "Go_board_9x9.png")) undo-pass ))
+(define stone-radius 17)
 (define black-stone (circle stone-radius "solid" "black"))
 (define white-stone (circle stone-radius "solid" "white"))
 (define go-text (text/font "GO" 50 "black" "Gill Sans" "modern" "normal" "bold" #f))
@@ -102,6 +105,7 @@
                              (text/font "2 PLAYER" 20 "black"
                                         "Gill Sans" "modern" "normal"
                                         "bold" #f)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This function generates the best possible move given the board_pos and for the
@@ -135,8 +139,8 @@
     ;The moves are of the form (cx, cy, ply) where plyr is 1 or 2
     (define moves '())
     (define 1_player #t)  ;;if the game is two player then this is false
-    (define 1_player_clr 2)  ;;which color has the 1st playr chose (black by default)
-    (define turn 1)  ;;can be 1 or 2 depending on whose turn(starting with always one)
+    (define turn 1)  ;;can be 1 or 2 depending on the color, as the color is important
+                     ;;if now black color turn then it is true else it is fasle
     (define error_msg "")  ;;the error msg will be stored here
     (define last_mv_pass #f)
     (define state 0)
@@ -153,11 +157,7 @@
         (display clr)
         (newline)
         (set! state 2)
-        (set! 1_player_clr clr)))
-
-    (define (get_plyr_clr plyr)
-      (if (= plyr 1) 1_player_clr
-          (if (= 1 1_player_clr) 2 1)))  ;;gives the color of the current player
+        (set! turn clr)))
 
     (define (next-turn)
       (cond ((= 1 turn) (begin (set! turn 2) (void)))
@@ -277,8 +277,10 @@
     (define/public (on_mouse x y)
       (define (try-move-at bx by current-turn)
         (define try-result (try_move bx by current-turn))
-        (cond ((= try-result 1) (set! moves (cons (list x y current-turn) moves)))
-              (else (void))))
+        (cond ((= try-result 1) (begin
+                                  (set! moves (cons (list x y current-turn) moves))
+                                  #t))
+              (else #f)))
       (cond
         [(= state 0)
          (cond
@@ -288,14 +290,12 @@
          (cond
            [(and (in_range x xlp1 xhp1) (in_range y ylp1 yhp1)) (set_1_player_clr! 2)]
            [(and (in_range x xlp2 xhp2) (in_range y ylp2 yhp2)) (set_1_player_clr! 1)])]
-        ((= state 2)
+        [(and (= state 2) (not 1_player))
          (let* ((indices (click-pos->index x y))
                 (current-turn turn)
-                (xx (car (index->click-pos (car indices) (cdr indices)))))
-           (begin (next-turn)
-                  (try_move (car indices)
-                            (cdr indices)
-                            current-turn))))))
+                (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
+           (if valid-move (next-turn) (void)))]
+        [(and (= state 2) 1_player) (void)]))
 
     (super-new)))
 
