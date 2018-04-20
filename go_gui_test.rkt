@@ -1,8 +1,5 @@
 #lang racket
 
-(require 2htdp/universe)
-(require 2htdp/image)
-
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require 2htdp/image)
@@ -14,24 +11,37 @@
 ;; Definitions of functions exported from gnugo 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Undo a move on the board.
-; @param : void
-; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Undo a move on the board.
+;; @param : void
+;; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master undo_previous_move (_fun -> _void))
 
-; Clear the entire board.
-; @param : void
-; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Clear the entire board.
+;; @param : void
+;; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master clear_board (_fun -> _void))
 
-; Get the entity at a particular intersection on the board
-; @param : integers i, j which specify a coordinate on the board
-; @return : integer. 0 -> Empty, 1 -> White, 2 -> Black
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Get the entity at a particular intersection
+;; on the board.
+;; @param : integers i, j which specify a
+;; coordinate on the board.
+;; @return : integer. 0 -> Empty,
+;;                    1 -> White,
+;;                    2 -> Black.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master board_pos (_fun _int _int -> _int))
 
-; Attempt a move at a particular intersection
-; @param : integers i, j and color
-; @return : integer. 0 -> invalid move, 1 -> valid move.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Attempt a move at a particular intersection
+;; @param : integers i, j and color
+;; @return : integer. 0 -> invalid move,
+;;                    1 -> valid move.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master try_move (_fun _int _int _int -> _int))
 
 (clear_board)
@@ -125,11 +135,7 @@
 
 (define board_state%
   (class object%
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;Board representation
-    ;0 -> No stone present
-    ;1 -> White Stone
-    ;2 -> Black Stone
+
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;Stores the moves such that we can get the latest move by (car moves)
     ;The moves are of the form (cx, cy, ply) where plyr is 1 or 2
@@ -162,49 +168,6 @@
     (define (next-turn)
       (cond ((= 1 turn) (begin (set! turn 2) (void)))
             ((= 2 turn) (begin (set! turn 1) (void)))))
-
-    ;;this function works differently for the cases of pass and no pass
-    ;(define (undo)
-    ;  ())
-
-;    (define (moveh! x y turn)
-;      (begin
-;        (set! last_mv_pass #f)
-;        (2d_vec_set! board_pos x y (get_plyr_clr turn))
-;        (set! moves (cons '(x y turn) moves))
-;        (set! turn (next_turn turn))))
-
-;    (define (computer!)
-;      (let*
-;          ([comp_move (generate_move board_pos (get_plyr_clr turn))]
-;           [xc (car comp_move)]
-;           [yc (cdr comp_move)])
-;        (cond
-;          [(and (= xc -1) (= yc -1))
-;           (if last_mv_pass (end_game)
-;               (begin
-;                 (set! last_mv_pass #t)
-;                 (set! moves (cons '(x y turn) moves))
-;                 (set! turn (next_turn turn))))]
-;          [else (moveh! xc yc turn)])))
-
-;    (define/public (move! x y)
-;      (if (check_valid x y (get_plyr_clr turn) board_pos) ;;if the move played by the player is indeed valid
-;          (begin
-;            (set! error_msg "")
-;            (moveh! x y turn)
-;            (cond
-;              [1_player (computer!)]))
-;          (set! error_msg "Illegal Move man")))
-;
-;    (define/public (pass)
-;      (if last_mv_pass (end_game)
-;          (begin
-;            (set! last_mv_pass #t)
-;            (set! moves (cons '(-1 -1 turn) moves))
-;            (set! turn (next_turn turn))
-;            (cond
-;              [1_player (computer!)]))))
 
     (define (to_draw_start)
       (overlay/offset
@@ -299,18 +262,22 @@
 
     (super-new)))
 
-(define go_board (new board_state%))
+;(define go_board (new board_state%))
+;
+;(define (render board)
+;  (send board to_draw))
+;
+;(define (try_mouse board x y click)
+;  (cond
+;    [(equal? click "button-down" ) (begin
+;                                     (send board on_mouse x y)
+;                                     board)]
+;    [else board]))
+;
+;(big-bang go_board
+;  (to-draw render)
+;  (on-mouse try_mouse))
 
-(define (render board)
-  (send board to_draw))
-
-(define (try_mouse board x y click)
-  (cond
-    [(equal? click "button-down" ) (begin
-                                     (send board on_mouse x y)
-                                     board)]
-    [else board]))
-
-(big-bang go_board
-  (to-draw render)
-  (on-mouse try_mouse))
+(define (loop i j)
+  (cond ((>= i j) (void))
+        (else (begin (try_move 1 3 2) ( (undo_previous_move) (loop (+ i 1) j)))))
