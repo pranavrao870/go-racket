@@ -1,45 +1,6 @@
 #lang racket
 
-(require ffi/unsafe)
-(require ffi/unsafe/define)
-(define-ffi-definer define-master (ffi-lib "/home/sumitc/CS152/Project/go-racket/gnugo-3.8/engine/libmaster"))
 (require "board_utilities.rkt")
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Definitions of functions exported from gnugo 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Undo a move on the board.
-;; @param : void
-;; @return : void
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master undo_previous_move (_fun -> _void))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Clear the entire board.
-;; @param : void
-;; @return : void
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master clear_board (_fun -> _void))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Get the entity at a particular intersection
-;; on the board.
-;; @param : integers i, j which specify a
-;; coordinate on the board.
-;; @return : integer. 0 -> Empty,
-;;                    1 -> White,
-;;                    2 -> Black.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master board_pos (_fun _int _int -> _int))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Attempt a move at a particular intersection
-;; @param : integers i, j and color
-;; @return : integer. 0 -> invalid move,
-;;                    1 -> valid move.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master try_move (_fun _int _int _int -> _int))
 
 (define total-moves 0)
 
@@ -113,4 +74,77 @@
     (cond ((>= i depth) (void))
           (else (undo_previous_move))))
   (begin (restore 0) (run)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;struct for storing the mini-max tree
+;bsc refers to black score
+;wsc refers to white score (territoris + capture)
+;the turn refers to which color (black or white) is the
+;node trying to optimize(black is 2 and white is 1)
+;select refers to the best branch which optimizes the turn
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct mm-node (turn select sub-trees wsc bsc move))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;The function which build as mini-max tree and returns it
+;@param wc bc - the captured white and black stoned tillnow
+;@param turn black(2) or white(1)
+;@param max-depth and current-depth
+;@param last-move (not used now but maybe useful for some heuristic later on)
+;@return the node contructed
+;Note that at the time of calling this function, the board_pos
+;must have the configuration at which the mini-max has to be evaluated
+;when the function returns, the configuration will be the same
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (build-minimax wc bc turn max-depth curr-depth last-move)
+  (define capture_points 1)
+  (define num-tries 0)
+  (define branching-fac 5)
+  (define max-num-tries (* 3 branching-fac))
+  (define moves-tried '())
+  (define sub-trees '())
+  (define (terr-counter)
+    (let*
+        ([terrs (count-territories board_pos)]
+         [wt (+ (* capture_points wc) (car terrs))]
+         [bt (+ (* capture_points bc) (cdr terrs))])
+      (mm-node turn -1 '() wt bt last-move)))
+  (define (helper iter)
+    (begin
+      (set! num-tries (+ 1 num-tries))
+      (cond
+        [(> num-tries max-num-tries) (terr-counter)]
+        [(<= iter branching-fac) 
+         (let*
+             ([move (generate-move last-move)])
+           (if (equal? (member move moves-tried) #f)
+               (let*
+                   ([set! moves-tried (cons move moves-tried)]
+                    [retval (try-move board_pos turn move)])
+                 (if (= retval 1)
+                     (let*
+                         ([wc-new (getcapture 1 board_pos)]
+                          [bc-new (getcapture 2 board_pos)]
+                          [turn-new (next-turn turn)]
+                          [tree (build-minimax wc-new bc-new turn-new max-depth
+                                               (+ curr-depth 1) move)]
+                          [tmp (set! sub-trees (cons tree sub-trees))]
+                          [tmp (undo board_pos)])
+                       (helper (+ iter 1)))
+                     (helper iter)))
+               (helper iter)))]
+        [(> iter branching-fac)
+         (let*
+             ([best (best-branch sub-trees turn)]
+              [wsc (car best)]
+              [bsc (cadr best)]
+              [select (cddr best)])
+           (mm-node turn select sub-trees wsc bsc move))])))
+
+  (cond
+    [(= curr-depth max-depth) (terr-counter)]
+    [else (helper 1)]))
+
+
   
