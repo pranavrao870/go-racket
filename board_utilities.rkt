@@ -1,6 +1,50 @@
 #lang racket
 
+(require ffi/unsafe)
+(require ffi/unsafe/define)
+
+
 (provide (all-defined-out))
+
+(define-ffi-definer define-master (ffi-lib "./libmaster"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Definitions of functions exported from gnugo 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Undo a move on the board.
+;; @param : void
+;; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-master undo_previous_move (_fun -> _void))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Clear the entire board.
+;; @param : void
+;; @return : void
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-master clear_board (_fun -> _void))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Get the entity at a particular intersection
+;; on the board.
+;; @param : integers i, j which specify a
+;; coordinate on the board.
+;; @return : integer. 0 -> Empty,
+;;                    1 -> White,
+;;                    2 -> Black.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-master board_pos (_fun _int _int -> _int))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Attempt a move at a particular intersection
+;; @param : integers i, j and color
+;; @return : integer. 0 -> invalid move,
+;;                    1 -> valid move.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-master try_move (_fun _int _int _int -> _int))
+
 
 (define size 9)
 
@@ -112,4 +156,4 @@
                                 (+ del (memo-align i (sub1 j))))))
                   (begin (place : table i j -> bst) bst)))))
   (memo-align m n))
-    
+
