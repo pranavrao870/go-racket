@@ -1,1 +1,0 @@
-../utils/getopt.o ../utils/getopt1.o ../utils/random.o ../utils/gg_utils.o ../utils/winsocket.o ../sgf/sgf_utils.o ../sgf/sgfnode.o ../sgf/sgftree.o board.o boardlib.o hash.o printutils.o
