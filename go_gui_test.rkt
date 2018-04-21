@@ -1,48 +1,9 @@
 #lang racket
 
-(require ffi/unsafe)
-(require ffi/unsafe/define)
 (require 2htdp/image)
 (require 2htdp/universe)
+(require "board_utilities.rkt")
 
-(define-ffi-definer define-master (ffi-lib "./libmaster"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Definitions of functions exported from gnugo 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Undo a move on the board.
-;; @param : void
-;; @return : void
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master undo_previous_move (_fun -> _void))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Clear the entire board.
-;; @param : void
-;; @return : void
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master clear_board (_fun -> _void))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Get the entity at a particular intersection
-;; on the board.
-;; @param : integers i, j which specify a
-;; coordinate on the board.
-;; @return : integer. 0 -> Empty,
-;;                    1 -> White,
-;;                    2 -> Black.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master board_pos (_fun _int _int -> _int))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Attempt a move at a particular intersection
-;; @param : integers i, j and color
-;; @return : integer. 0 -> invalid move,
-;;                    1 -> valid move.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-master try_move (_fun _int _int _int -> _int))
 
 (clear_board)
 
@@ -59,9 +20,9 @@
   (and (<= val high) (<= low val)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Size of the board.
+;; Size of the board.(imported form the board_utils)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define size 9)
+;(define size 9)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Min and Max coordinates on
@@ -87,7 +48,7 @@
 (define (index->click-pos x y)
   (cons (+ 25 (* x (/ (- max-xy min-xy) (sub1 size))))
         (+ 25 (* y (/ (- max-xy min-xy) (sub1 size))))))
-  
+
 (define xlp1 177)
 (define xhp1 220)
 (define ylp1 224)
@@ -124,20 +85,20 @@
 ;This function generates the best possible move given the board_pos and for the
 ;clr(1 for white and 2 black)
 ;or else return (-1 -1) if there is no possible move and wants to pass
-(define (generate_move board_pos clr)
-  (define (tryh i j)
-    (if (check_valid i j clr board_pos) (cons i j)
-        (cond
-          [(< i (vector-length board_pos)) (tryh (+ 1 i) j)]
-          [(< j (vector-length board_pos)) (tryh i (+ j 1))]
-          [else (cons -1 -1)])))
-  (tryh 1 1))
+;(define (generate_move board_pos clr)
+;  (define (tryh i j)
+;    (if (check_valid i j clr board_pos) (cons i j)
+;        (cond
+;          [(< i (vector-length board_pos)) (tryh (+ 1 i) j)]
+;          [(< j (vector-length board_pos)) (tryh i (+ j 1))]
+;          [else (cons -1 -1)])))
+;  (tryh 1 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;this checks if the board is already filled at that position
 ;is yes return true, else check the complicated rules like ko, dragon and so on
-(define (check_valid x y clr board_pos)
-  (if (equal? (2d_vec_get board_pos x y) 0) #t #f))
+;(define (check_valid x y clr board_pos)
+;  (if (equal? (2d_vec_get board_pos x y) 0) #t #f))
 
 
 (define board_state%
@@ -280,4 +241,3 @@
 (big-bang go_board
   (to-draw render)
   (on-mouse try_mouse))
-
