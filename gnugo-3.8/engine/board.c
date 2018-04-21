@@ -767,6 +767,14 @@ void undo_previous_move(){
     undo_trymove();
 }
 
+int total_black_capture (){
+    return black_capture;
+}
+
+int total_white_capture (){
+    return white_capture;
+}
+
 static void
 undo_trymove()
 {
@@ -3343,7 +3351,7 @@ new_position(void)
       string[next_string].origin = pos;
       string[next_string].mark = 0;
       next_string++;
-      PARANOID1(next_string < MAX_STRINGS, pos);
+      //PARANOID1(next_string < MAX_STRINGS, pos);
     }
   }
   
@@ -3700,7 +3708,7 @@ create_new_string(int pos)
   /* Get the next free string number. */
   PUSH_VALUE(next_string);
   s = next_string++;
-  PARANOID1(s < MAX_STRINGS, pos);
+  //PARANOID1(s < MAX_STRINGS, pos);
   string_number[pos] = s;
   /* Set up a size one cycle for the string. */
   next_stone[pos] = pos;
@@ -3986,7 +3994,7 @@ assimilate_neighbor_strings(int pos)
   /* Get the next free string number. */
   PUSH_VALUE(next_string);
   s = next_string++;
-  PARANOID1(s < MAX_STRINGS, pos); 
+  //PARANOID1(s < MAX_STRINGS, pos); 
   string_number[pos] = s;
   /* Set up a size one cycle for the string. */
   next_stone[pos] = pos;

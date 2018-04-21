@@ -265,22 +265,19 @@
 
     (super-new)))
 
-;(define go_board (new board_state%))
-;
-;(define (render board)
-;  (send board to_draw))
-;
-;(define (try_mouse board x y click)
-;  (cond
-;    [(equal? click "button-down" ) (begin
-;                                     (send board on_mouse x y)
-;                                     board)]
-;    [else board]))
-;
-;(big-bang go_board
-;  (to-draw render)
-;  (on-mouse try_mouse))
+(define go_board (new board_state%))
 
-(define (loop i j)
-  (cond ((>= i j) (void))
-        (else (begin (try_move 1 3 2) ( (undo_previous_move) (loop (+ i 1) j)))))
+(define (render board)
+  (send board to_draw))
+
+(define (try_mouse board x y click)
+  (cond
+    [(equal? click "button-down" ) (begin
+                                     (send board on_mouse x y)
+                                     board)]
+    [else board]))
+
+(big-bang go_board
+  (to-draw render)
+  (on-mouse try_mouse))
+

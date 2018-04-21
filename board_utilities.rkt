@@ -5,7 +5,12 @@
 (define size 9)
 
 (define (on-board? num)
-  (and (>= num 0) (< num (* size size))))
+  (cond ((cons? num) (and (< (car num) size)
+                          (>= (car num) 0)
+                          (< (cdr num) size)
+                          (>= (cdr num) 0)))
+        ((number? num) (and (>= num 0) (< num (* size size)))) 
+        (else (error "expected number/pair"))))
 
 (define (num->index n)
   (cons (quotient n size) (remainder n size)))

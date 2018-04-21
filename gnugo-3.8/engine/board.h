@@ -90,7 +90,7 @@ typedef unsigned char Intersection;
  * the list around August 21, 2001, in a thread with the subject 
  * "gnugo bug logs".
  */
-#define MAXSTACK  MAX_BOARD * MAX_BOARD
+#define MAXSTACK 10000 
 #define MAXCHAIN  160
 
 #define HASH_RANDOM_SEED 12345
