@@ -111,23 +111,28 @@
 
 (define board_state%
   (class object%
-
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;Stores the moves such that we can get the latest move by (car moves)
     ;The moves are of the form (cx, cy, ply) where plyr is 1 or 2
     (define moves '())
     (define 1_player #t)  ;;if the game is two player then this is false
-    (define turn 1)  ;;can be 1 or 2 depending on the color, as the color is important
+    (define turn 2)  ;;can be 1 or 2 depending on the color, as the color is important
+    (define 1_player_clr 1) ;;the black plays first always, in 2 player this is easy
+    ;;but in 1 player, the player can choose whether he is black
+    ;;or the computer is black
     ;;if now black color turn then it is true else it is fasle
     (define error_msg "")  ;;the error msg will be stored here
     (define last_mv_pass #f)
     (define state 0)
+    (define start-phase #t) ;;in case the player is playing against the computer then this
+    ;;defines the first few standard moves
+    (define corner-picked -1)
 
     (define/public (set_1_player! val)
       (begin
         (display val)
         (newline)
-        (set! state 1)
+        (set! state (if val 1 2))
         (set! 1_player val)))
 
     (define/public (set_1_player_clr! clr)
@@ -135,11 +140,78 @@
         (display clr)
         (newline)
         (set! state 2)
-        (set! turn clr)))
+        (set! 1_player_clr clr)
+        (if (= 1 1_player_clr) (comp-move!) (void))))
 
     (define (next-turn)
       (cond ((= 1 turn) (begin (set! turn 2) (void)))
             ((= 2 turn) (begin (set! turn 1) (void)))))
+
+    (define (comp-move!)
+      (cond
+        [start-phase (34-corner-strategy)]
+        [(< (length moves) 3) (begin
+                                (set! start-phase #t)
+                                (34-corner-strategy))]))
+
+    (define (custom-pos val)
+      (if (> val 3) -1 1))
+
+    (define (build-corner)
+      (define cx (car corner-picked))
+      (define cy (cdr corner-picked))
+      (let*
+          ([tryx (+ cx (* 2 (custom-pos cx)))]
+           [tryy cy])
+        (if (try-move-at tryx tryy turn)
+            (next-turn)
+            (let*
+                ([tryx cx]
+                 [tryy (+ cy (* 2 (custom-pos cy)))])
+              (if (try-move-at tryx tryy turn)
+                  (next-turn)
+                  (let*
+                      ([tryx (- cx (* 1 (custom-pos cx)))]
+                       [tryy (+ cy (* 2 (custom-pos cy)))])
+                    (if (try-move-at tryx tryy turn)
+                        (next-turn)
+                        (let*
+                            ([tryx (+ cx (* 2 (custom-pos cx)))]
+                             [tryy (- cy (* 1 (custom-pos cy)))])
+                          (if (try-move-at tryx tryy turn)
+                              (next-turn)
+                              (let*
+                                  ([tryx (+ cx (* 2 (custom-pos cx)))]
+                                   [tryy cy])
+                                (if (try-move-at tryx tryy turn)
+                                    (next-turn)
+                                    (let*
+                                        ([tryx cx]
+                                         [tryy (+ cy (* 2 (custom-pos cy)))])
+                                      (if (try-move-at tryx tryy turn)
+                                          (next-turn)
+                                          (begin
+                                            (set! start-phase #f)
+                                            (comp-move!)))))))))))))))
+
+    (define (pick-corner first_att)
+      (let*
+          ([tryx (+ 2 (* 4 (quotient first_att 2)))]
+           [tryy (+ 2 (* 4 (remainder first_att 2)))])
+        (if (try-move-at tryx tryy turn)
+            (begin (set! corner-picked (cons tryx tryy)))
+            (pick-corner (random 4)))))
+            
+
+    (define (34-corner-strategy)
+      (cond
+        [(> (length moves) 12) (begin
+                                 (set! start-phase #f)
+                                 (comp-move!))]
+        [(< (length moves) 2) (begin
+                                (pick-corner (random 4))
+                                (next-turn))]
+        [else (build-corner)]))
 
     (define (to_draw_start)
       (overlay/offset
@@ -209,13 +281,14 @@
         [(= state 2) (to_draw_board)]
         [else (to_draw_end)]))
 
+    (define (try-move-at bx by current-turn)
+      (define try-result (try_move bx by current-turn))
+      (cond ((= try-result 1) (begin
+                                (set! moves (cons (list bx by current-turn) moves))
+                                #t))
+            (else #f)))
+    
     (define/public (on_mouse x y)
-      (define (try-move-at bx by current-turn)
-        (define try-result (try_move bx by current-turn))
-        (cond ((= try-result 1) (begin
-                                  (set! moves (cons (list x y current-turn) moves))
-                                  #t))
-              (else #f)))
       (cond
         [(= state 0)
          (cond
@@ -227,21 +300,21 @@
            [(and (in_range x xlp2 xhp2) (in_range y ylp2 yhp2)) (set_1_player_clr! 1)])]
         [(and (= state 2) (undo-click x y) (> (length moves) 1))
          (if 1_player
-         (begin
-           (undo_previous_move)
-           (undo_previous_move)
-           (set! moves (cddr moves))
-           (set! last_mv_pass #f))
-         (begin
-           (undo_previous_move)
-           (next-turn)
-           (set! moves (cdr moves))))]
+             (begin
+               (undo_previous_move)
+               (undo_previous_move)
+               (set! moves (cddr moves))
+               (set! last_mv_pass #f))
+             (begin
+               (undo_previous_move)
+               (next-turn)
+               (set! moves (cdr moves))))]
         [(and (= state 2) (pass-click x y))
          (if last_mv_pass (end_game)
              (if 1_player
                  (begin
                    (set! last_mv_pass #t)
-                   ;(comp-move!)
+                   (comp-move!)
                    (next-turn))
                  (begin
                    (set! last_mv_pass #t)
@@ -254,7 +327,17 @@
                    ((current-turn turn)
                     (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
                  (if valid-move (next-turn) (void)))))]
-        [(and (= state 2) 1_player) (void)]))
+        [(and (= state 2) 1_player)
+         (let* ((indices (click-pos->index x y)))
+           (if (equal? (car indices) #f) (void)
+               (let*
+                   ((current-turn turn)
+                    (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
+                 (if valid-move
+                     (begin
+                       (next-turn)
+                       (comp-move!))
+                     (void)))))]))
 
     (super-new)))
 
