@@ -45,9 +45,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-master try_move (_fun _int _int _int -> _int))
 
+(define-master total_white_capture (_fun -> _int))
+
+(define-master total_black_capture (_fun -> _int))
+
+(define-master _x (_fun _int -> _int))
+(define-master _y (_fun _int -> _int))
+
+(define-master find_lib (_fun _int _int (o : (_list o _int 54)) ;; MAXLIBS = 54
+                              -> (r : _int)
+                              -> (values r o)))
+
+(define (find-lib-wrapper i j)
+  (define-values (total lst) (find_lib i j))
+  (map (lambda (pos) (cons (_x pos) (_y pos))) (take lst total)))
 
 (define size 9)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Calculate the scores for each, given the list
+;; (wt bt wc bc). Higher weight is attached to
+;; capture because that causes an immediate
+;; increase in score.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (calculate-scores lst)
+  (cons (+ (* 0.65 (third lst)) (* 0.35 (first lst)))
+        (+ (* 0.65 (fourth lst)) (* 0.35 (second lst)))))
+   
 (define (on-board? num)
   (cond ((cons? num) (and (< (car num) size)
                           (>= (car num) 0)
@@ -67,6 +91,9 @@
 (define-syntax-rule (place : board i j -> val)
   (cond ((vector? board) (vector-set! (vector-ref board i) j val))
         (else (error "Expected vector in macro set"))))
+
+(define (board->2dlist)
+  (build-list size (lambda (x) (build-list size (lambda (y) (board_pos x y))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Count territories of each
@@ -117,43 +144,5 @@
                                                    (+ bt cfree)
                                                    bt))))
                      (build-list (* size size) values))
-         (cons wt bt)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Compare two board states for
-;; similarity. This is done using
-;; the sequence alignment
-;; algorithm.
-;; @param : Two boards
-;; @return : Index specifying the
-;; closeness.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (similar board1 board2)
-  (define b1 (flatten board1))
-  (define b2 (flatten board2))
-  (define len (length b1))
-  (define m (length board1))
-  (define n (length board2))
-  (define match-cost '((0 1 1) (1 0 3) (1 3 0)))
-  (define del 2)
-  (define table (build-vector (add1 m)
-                              (lambda (x)
-                                (build-vector
-                                 (add1 n)
-                                 (lambda (y)
-                                   (cond ((= 0 y) (* del x))
-                                         ((= 0 x) (* del y))
-                                         (else -1)))))))
-  (define (memo-align i j)
-    (cond ((or (< i 0) (< j 0)) 0)
-          ((>= (@ i j table) 0) (@ i j table))
-          (else (let ((bst (min (+ (@ (@ (sub1 i) (sub1 j) board1)
-                                      (@ (sub1 i) (sub1 j) board2)
-                                      match-cost)
-                                   (memo-align (sub1 i) (sub1 j)))
-                                (+ del (memo-align (sub1 i) j))
-                                (+ del (memo-align i (sub1 j))))))
-                  (begin (place : table i j -> bst) bst)))))
-  (memo-align m n))
+         (list wt bt)))
 

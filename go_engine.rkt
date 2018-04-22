@@ -22,11 +22,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (clear_board)
 
-(define (run-simulation init-board init-player init-move max-depth time)
+(define (run-simulation init-board init-player prev-move max-depth)
   (define depth 0)
-  (define start-time (current-inexact-milliseconds))
   (define current-board init-board)
-  (define current-move init-move)
+  (define prev-move prev-move)
   (define current-player init-player)
   (define current-captures (cons (total_white_capture) (total_black_capture)))
   (define (run)
@@ -36,13 +35,13 @@
               (else
                (let* ((rel-x (- (random 6) 2))
                       (rel-y (- (random 6) 2))
-                      (x (car current-move))
-                      (y (cdr current-move)))
+                      (x (car prev-move))
+                      (y (cdr prev-move)))
                  (cond ((not (on-board? (cons (+ x rel-x)
                                               (+ y rel-y)))) (manhattan-move (sub1 i)))
                        (else (let ((play (try_move (+ x rel-x) (+ y rel-y) stone)))
                                (cond ((= play 1) (begin
-                                                   (set! current-move
+                                                   (set! prev-move
                                                          (cons (+ rel-x x)
                                                                (+ rel-y y)))
                                                    #t))
@@ -52,7 +51,7 @@
         (let* ((x (random size))
                (y (random size))
                (play (try_move x y stone)))
-          (cond ((= play 1) (set! current-move (cons x y)))
+          (cond ((= play 1) (set! prev-move (cons x y)))
                 (else (random-move)))))
 
       (let ((rand (random)))
@@ -60,68 +59,75 @@
               (else (random-move)))))
 
     (define (update-current-board)
-      (set! current-board
-            (build-list size
-                        (lambda (x) (build-list size (lambda (y) (board_pos x y)))))))
+      (set! current-board (board->2dlist)))
     
-    (cond ((or (> depth max-depth)
-               (> (- (current-inexact-milliseconds) start-time) time))
-           (list (count-territories current-board) (cons (- (total_white_capture)
-                                                            (car current-captures))
-                                                         (- (total_black_capture)
-                                                            (cdr current-captures)))))
+    (cond ((> depth max-depth)
+           (append (count-territories current-board) (list (- (total_white_capture)
+                                                              (car current-captures))
+                                                           (- (total_black_capture)
+                                                              (cdr current-captures)))))
 
           (else (begin (gen-next-board current-player)
                        (update-current-board)
                        (set! depth (add1 depth))
-                       (set! current-player (if (= current-player 1) 2 1))
+                       (set! current-player (next-turn current-player))
                        (run)))))
   (define (restore i)
     (cond ((>= i depth) (void))
           (else (begin (undo_previous_move) (restore (add1 i))))))
   (define this-run (run))
   (begin (restore 0) this-run))
-(define ib '((0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 2 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)
-             (0 0 0 0 0 0 0 0 0)))
-(try_move 4 4 2)
-(define im (cons 4 4))
-
-(define (test i j)
-  (cond ((> i j) (void))
-        (else (begin (displayln (run-simulation ib 1 im 60 10000))
-                     (test (add1 i) j)))))
-
-  
-          (else (undo_previous_move))))
-  (begin (restore 0) (run)))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; struct for storing the mini-max tree
+;; bsc : black score
+;; wsc : white score (check calculate-scores)
+;; turn : color (black or white) for which the
+;;        node trying to optimize.
+;; select : best branch according to minimax
+;;          which optimizes the turn.
+;; sub-trees : list of subtrees of this tree.
+;; move : the last move made to reach this state
+;; tplays : total playouts made passing through
+;;          this node.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct mm_node (turn select sub-trees wsc bsc move tplays))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;struct for storing the mini-max tree
-;bsc refers to black score
-;wsc refers to white score (territoris + capture)
-;the turn refers to which color (black or white) is the
-;node trying to optimize(black is 2 and white is 1)
-;select refers to the best branch which optimizes the turn
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct mm_node (turn select sub-trees wsc bsc move))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Since we don't want to miss out on capturing
+;; opponents pieces. So based on the last move
+;; we check whether there is a chance to capture
+;; by counting the liberties. Also, we don't want
+;; to fill our own liberties.
+;; @param : previous move and the turn of
+;;          current player.
+;; @return : new move.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (generate-move last-move turn)
+  (define choose-move (random))
+  (define their-libs (find-lib-wrapper (car last-move)
+                                     (cdr last-move)))
+  (cond ((and (< choose-move 0.5) (<= (length their-libs) 3)) (car their-libs))
+        (else (let ((x (random size))
+                    (y (random size))
+                    (my-libs (remove-duplicates
+                              (append*
+                               (map
+                                (lambda (x)
+                                  (cond ((= turn (board_pos (first x) (second x)))
+                                         (find-lib-wrapper (first x) (second x)))
+                                        (else '()))))))))
+                (if (and (member (cons x y) my-libs)
+                         (<= my-libs 2)
+                         (< choose-move 0.7))
+                    (generate-move last-move turn)
+                    (cons x y))))))
 
-
-(define (generate-move last-move)
-    (let* ((x (random 9))
-       (y (random 9)))
-       (cons x y)))
-
-(define (getcapture board_pos)
-  0)
+(define (getcapture turn)
+  (cond
+    ((= turn 1) (total_white_capture))
+    ((= turn 2) (total_black_capture))))
 
 (define (next-turn turn)
   (if (= turn 1) 2 1))
@@ -137,63 +143,187 @@
             best-till)))
     (foldr helper (cons -1 (cons -1 0)) li))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;The function which build as mini-max tree and returns it
-;@param wc bc - the captured white and black stoned tillnow
-;@param turn black(2) or white(1)
-;@param max-depth and current-depth
-;@param last-move (not used now but maybe useful for some heuristic later on)
-;@return the node contructed
-;Note that at the time of calling this function, the board_pos
-;must have the configuration at which the mini-max has to be evaluated
-;when the function returns, the configuration will be the same
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; The function which builds mini-max tree.
+;; @param wc bc : white and black captures
+;;                respectively.
+;; @param turn : black(2) or white(1)
+;; @param max-depth and current-depth
+;; @param last-move 
+;; @return : An mm_node containing complete
+;;           information about the minimax tree.
+;; Note that at the time of calling this function,
+;; the board_pos must have the configuration at
+;; which the mini-max has to be evaluated when
+;; the function returns, the configuration will
+;; be the same.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (build-minimax wc bc turn max-depth curr-depth last-move)
-  (define capture_points 1)
   (define num-tries 0)
-  (define branching-fac 5)
+  (define branching-fac 10)
   (define max-num-tries (* 10 branching-fac))
   (define moves-tried '())
   (define sub-trees '())
   (define (terr-counter)
     (let*
-        ([terrs (count-territories board_pos)]
-         [wt (+ (* capture_points wc) (car terrs))]
-         [bt (+ (* capture_points bc) (cdr terrs))])
-      (mm_node turn -1 '() wt bt last-move)))
+        ((scores (calculate-scores
+                  (append (list wc bc)
+                          (count-territories (board->2dlist)))))
+         (wt (car scores))
+         (bt (cdr scores)))
+      (mm_node turn -1 '() wt bt last-move 1)))
   (define (helper iter)
     (begin
       (set! num-tries (+ 1 num-tries))
       (cond
-        [(> num-tries max-num-tries) (terr-counter)]
-        [(<= iter branching-fac)
-         (let*
-             ([move (generate-move last-move)])
+        ((> num-tries max-num-tries) (terr-counter))
+        ((<= iter branching-fac)
+         (let* ((move (generate-move last-move turn)))
            (if (equal? (member move moves-tried) #f)
                (let*
-                   ([tmp (set! moves-tried (cons move moves-tried))]
-                    [retval (try_move board_pos turn move)])
+                   ((tmp (set! moves-tried (cons move moves-tried)))
+                    (retval (try_move (car move) (cdr move) turn)))
                  (if (= retval 1)
                      (let*
-                         ([wc-new (getcapture 1 board_pos)]
-                          [bc-new (getcapture 2 board_pos)]
-                          [turn-new (next-turn turn)]
-                          [tree (build-minimax wc-new bc-new turn-new max-depth
-                                               (+ curr-depth 1) move)]
-                          [tmp (set! sub-trees (cons tree sub-trees))]
-                          [tmp (undo_previous_move board_pos)])
+                         ((wc-new (getcapture 1))
+                          (bc-new (getcapture 2))
+                          (turn-new (next-turn turn))
+                          (tree (build-minimax wc-new bc-new turn-new max-depth
+                                               (+ curr-depth 1) move))
+                          (tmp (set! sub-trees (cons tree sub-trees)))
+                          (tmp (undo_previous_move)))
                        (helper (+ iter 1)))
                      (helper iter)))
-               (helper iter)))]
-        [(> iter branching-fac)
+               (helper iter))))
+        ((> iter branching-fac)
          (let*
-             ([best (best-branch sub-trees turn)]
-              [wsc (car best)]
-              [bsc (cadr best)]
-              [select (cddr best)])
-           (mm_node turn select sub-trees wsc bsc last-move))])))
+             ((best (best-branch sub-trees turn))
+              (wsc (car best))
+              (bsc (cadr best))
+              (select (cddr best)))
+           (mm_node turn select sub-trees wsc bsc last-move (foldl
+                                                             (lambda (x y)
+                                                               (+ y (mm_node-tplays x)))
+                                                             0 sub-trees)))))))
 
   (cond
-    [(= curr-depth max-depth) (terr-counter)]
-    [else (helper 1)]))
->>>>>>> master/master
+    ((= curr-depth max-depth) (terr-counter))
+    (else (helper 1))))
+
+(define (sim-for-time
+         total-time
+         init-board
+         init-player
+         prev-move
+         max-depth)
+  (define current-time (current-inexact-milliseconds))
+  (define results '())
+  (define (loop)
+    (cond ((< total-time (- (current-inexact-milliseconds) current-time)) (void))
+          (else (begin (set! results (cons (run-simulation init-board
+                                                           init-player
+                                                           prev-move
+                                                           max-depth)
+                                           results))
+                             (loop)))))
+  (begin (loop)
+         (let ((len (length results)))
+           (foldl (lambda (x y) (map (lambda (i j) (+ i j)) x y))
+                  (list 0 0 0 0) 
+                  (map (lambda (x) (map (lambda (y) (/ y len)) x)) results)))))
+
+(define (update tree move-list)
+  (cond ((null? move-list)
+         ;; Possibly make a new node and simulate for approx 2/3 of the moves left.
+         (let* ((next-move (generate-move
+                            (mm_node-move tree)
+                            (mm_node-turn tree)))
+                (attempt (try_move (car next-move) (cdr next-move))))
+           (cond ((= attempt 1) ;; simulate
+                  (let* ((sim-result
+                          (sim-for-time
+                           200
+                           (board->2dlist)
+                           (next-turn (mm_node-turn tree))
+                           (mm_node-move tree)
+                           (/ (* 2 (- (* size size) total-moves)) 3)))
+                         (scores (calculate-scores sim-result))
+                         (new-node (mm_node
+                                    (next-turn (mm_node-turn tree))
+                                    -1
+                                    '()
+                                    (car scores)
+                                    (cdr scores)
+                                    next-move
+                                    1)))
+                    ;; Because pranav said that we keep the scores of the best branch
+                    ;; over here, since there is only one (newly created) branch. We just
+                    ;; update with it's scores.
+                    (mm_node (mm_node-turn tree) new-node (list new-node) (car scores) (cdr scores) (mm_node-move tree) 2))) 
+                  (else tree)))) ;; Don't simulate if try_move returns 0. I guess it is there to make my life easy.
+        (else (begin (try_move (car (car move-list)) (cdr (car move-list)) (mm_node-turn tree))
+                     (let* ((updated-subtrees
+                             (map
+                              (lambda (x)
+                                (if (equal? (mm_node-move x)
+                                            (car move-list))
+                                    (update x (cdr move-list))
+                                    x))
+                              (mm_node-sub-trees tree)))
+                            (best (best-branch updated-subtrees (mm_node-turn tree)))
+                            (wsc (car best))
+                            (bsc (cdr best))
+                            (select (cddr best)))
+                       (begin (undo_previous_move)
+                              (mm_node (mm_node-turn tree)
+                                       select
+                                       updated-subtrees
+                                       wsc bsc (mm_node-move tree) (add1 mm_node-tplays))))))))
+;; BOTH THESE PROCEDURES INCLUDE TOPMOST MOVE (OVERALL LAST MOVE)
+(define (mm-move-list tree lst)
+  (cond ((mm_node? (mm_node-select tree))
+         (mm-move-list (mm_node-select tree)
+                       (append lst ((list (mm_node-move tree))))))
+        (else (append lst (list (mm_node-move tree))))))
+
+(define (uct-move-list tree lst)
+  (define (uct-formula x)
+    (define (expression xi n ni)
+      (+ xi (sqrt (/ (log n) ni))))
+    ;; For foldl.
+    (define (add-scores t1 t2)
+      (cond ((null? t2) (cons (mm_node-wsc t1) (mm_node-bsc t1)))
+            (else (cons (+ (mm_node-wsc t1) (car t2)) (+ (mm_node-bsc t1) (cdr t2))))))
+    (cond ((null? mm_node-sub-trees x)
+           (expression (if (= (mm_node-turn tree) 1)
+                           (- (mm_node-wsc x) (mm_node-bsc x))
+                           (- (mm_node-bsc x) (mm_node-wsc x)))
+                       (mm_node-tplays tree)
+                       (mm_node-tplays x)))
+          (else (let* ((sum-of-scores (foldl add-scores null (mm_node-sub-trees x)))
+                       (white-score (/ (car sum-of-scores) (length (mm_node-sub-trees x))))
+                       (black-score (/ (cdr sum-of-scores) (length (mm_node-sub-trees x)))))
+                  (expression (if (= (mm_node-turn tree) 2)
+                                  (- black-score white-score)
+                                  (- white-score black-score))
+                              (mm_node-tplays tree)
+                              (mm_node-tplays x))))))
+  (cond ((not (null? (mm_node-sub-trees tree)))
+         (let ((best-score-tree
+                (foldl (lambda (x y) (if (null? y) x
+                                         (if (> (uct-formula x) (uct-formula y)) x y)))
+                       null (mm_node-sub-trees tree))))
+           (uct-move-list best-score-tree (append lst (list mm_node-move tree)))))
+        (else (append lst (list mm_node-move tree)))))
+
+
+
+
+
+        
+  
+
+
+
+
+
