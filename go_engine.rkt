@@ -2,6 +2,8 @@
 
 (require "board_utilities.rkt")
 
+(provide ai)
+
 (define total-moves 0)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -107,7 +109,7 @@
 (define (generate-move last-move turn)
   (define choose-move (random))
   (define their-libs (find-lib-wrapper (car last-move)
-                                     (cdr last-move)))
+                                       (cdr last-move)))
   (cond ((and (< choose-move 0.5) (<= (length their-libs) 3)) (car their-libs))
         (else (let ((x (random size))
                     (y (random size))
@@ -117,9 +119,9 @@
                                 (lambda (x)
                                   (cond ((= turn (board_pos (first x) (second x)))
                                          (find-lib-wrapper (first x) (second x)))
-                                        (else '()))))))))
+                                        (else '()))) (cartesian-product (build-list size values) (build-list size values)))))))
                 (if (and (member (cons x y) my-libs)
-                         (<= my-libs 2)
+                         (<= (length my-libs) 2)
                          (< choose-move 0.7))
                     (generate-move last-move turn)
                     (cons x y))))))
@@ -141,12 +143,10 @@
         (if (< (cadr best-till) (mm_node-bsc curr))
             (cons (mm_node-wsc curr) (cons (mm_node-bsc curr) curr))
             best-till)))
-    (foldr helper (cons -1 (cons -1 0)) li))
+  (foldr helper (cons -1 (cons -1 0)) li))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The function which builds mini-max tree.
-;; @param wc bc : white and black captures
-;;                respectively.
 ;; @param turn : black(2) or white(1)
 ;; @param max-depth and current-depth
 ;; @param last-move 
@@ -158,15 +158,17 @@
 ;; the function returns, the configuration will
 ;; be the same.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (build-minimax wc bc turn max-depth curr-depth last-move)
+(define (build-minimax turn max-depth curr-depth last-move)
   (define num-tries 0)
-  (define branching-fac 10)
+  (define branching-fac 5)
   (define max-num-tries (* 10 branching-fac))
   (define moves-tried '())
   (define sub-trees '())
   (define (terr-counter)
     (let*
-        ((scores (calculate-scores
+        ((wc (getcapture 1))
+         (bc (getcapture 2))
+         (scores (calculate-scores
                   (append (list wc bc)
                           (count-territories (board->2dlist)))))
          (wt (car scores))
@@ -185,10 +187,8 @@
                     (retval (try_move (car move) (cdr move) turn)))
                  (if (= retval 1)
                      (let*
-                         ((wc-new (getcapture 1))
-                          (bc-new (getcapture 2))
-                          (turn-new (next-turn turn))
-                          (tree (build-minimax wc-new bc-new turn-new max-depth
+                         ((turn-new (next-turn turn))
+                          (tree (build-minimax turn-new max-depth
                                                (+ curr-depth 1) move))
                           (tmp (set! sub-trees (cons tree sub-trees)))
                           (tmp (undo_previous_move)))
@@ -225,7 +225,7 @@
                                                            prev-move
                                                            max-depth)
                                            results))
-                             (loop)))))
+                       (loop)))))
   (begin (loop)
          (let ((len (length results)))
            (foldl (lambda (x y) (map (lambda (i j) (+ i j)) x y))
@@ -260,7 +260,7 @@
                     ;; over here, since there is only one (newly created) branch. We just
                     ;; update with it's scores.
                     (mm_node (mm_node-turn tree) new-node (list new-node) (car scores) (cdr scores) (mm_node-move tree) 2))) 
-                  (else tree)))) ;; Don't simulate if try_move returns 0. I guess it is there to make my life easy.
+                 (else tree)))) ;; Don't simulate if try_move returns 0. I guess it is there to make my life easy.
         (else (begin (try_move (car (car move-list)) (cdr (car move-list)) (mm_node-turn tree))
                      (let* ((updated-subtrees
                              (map
@@ -286,37 +286,52 @@
                        (append lst ((list (mm_node-move tree))))))
         (else (append lst (list (mm_node-move tree))))))
 
+(define (uct-formula x tree)
+  (define (expression xi n ni)
+    (+ xi (sqrt (/ (log n) ni))))
+  ;; For foldl.
+  (define (add-scores t1 t2)
+    (cond ((null? t2) (cons (mm_node-wsc t1) (mm_node-bsc t1)))
+          (else (cons (+ (mm_node-wsc t1) (car t2)) (+ (mm_node-bsc t1) (cdr t2))))))
+  (cond ((null? mm_node-sub-trees x)
+         (expression (if (= (mm_node-turn tree) 1)
+                         (- (mm_node-wsc x) (mm_node-bsc x))
+                         (- (mm_node-bsc x) (mm_node-wsc x)))
+                     (mm_node-tplays tree)
+                     (mm_node-tplays x)))
+        (else (let* ((sum-of-scores (foldl add-scores null (mm_node-sub-trees x)))
+                     (white-score (/ (car sum-of-scores) (length (mm_node-sub-trees x))))
+                     (black-score (/ (cdr sum-of-scores) (length (mm_node-sub-trees x)))))
+                (expression (if (= (mm_node-turn tree) 2)
+                                (- black-score white-score)
+                                (- white-score black-score))
+                            (mm_node-tplays tree)
+                            (mm_node-tplays x))))))
+
 (define (uct-move-list tree lst)
-  (define (uct-formula x)
-    (define (expression xi n ni)
-      (+ xi (sqrt (/ (log n) ni))))
-    ;; For foldl.
-    (define (add-scores t1 t2)
-      (cond ((null? t2) (cons (mm_node-wsc t1) (mm_node-bsc t1)))
-            (else (cons (+ (mm_node-wsc t1) (car t2)) (+ (mm_node-bsc t1) (cdr t2))))))
-    (cond ((null? mm_node-sub-trees x)
-           (expression (if (= (mm_node-turn tree) 1)
-                           (- (mm_node-wsc x) (mm_node-bsc x))
-                           (- (mm_node-bsc x) (mm_node-wsc x)))
-                       (mm_node-tplays tree)
-                       (mm_node-tplays x)))
-          (else (let* ((sum-of-scores (foldl add-scores null (mm_node-sub-trees x)))
-                       (white-score (/ (car sum-of-scores) (length (mm_node-sub-trees x))))
-                       (black-score (/ (cdr sum-of-scores) (length (mm_node-sub-trees x)))))
-                  (expression (if (= (mm_node-turn tree) 2)
-                                  (- black-score white-score)
-                                  (- white-score black-score))
-                              (mm_node-tplays tree)
-                              (mm_node-tplays x))))))
   (cond ((not (null? (mm_node-sub-trees tree)))
          (let ((best-score-tree
                 (foldl (lambda (x y) (if (null? y) x
-                                         (if (> (uct-formula x) (uct-formula y)) x y)))
+                                         (if (> (uct-formula x tree)
+                                                (uct-formula y tree)) x y)))
                        null (mm_node-sub-trees tree))))
            (uct-move-list best-score-tree (append lst (list mm_node-move tree)))))
         (else (append lst (list mm_node-move tree)))))
 
-
-
-
-
+(define (ai last-move turn time)
+  (define search-tree (build-minimax turn 6 0 last-move))
+  (define start-time (current-inexact-milliseconds))
+  (define mm-path (mm-move-list search-tree '()))
+  (define (select-best)
+    (define best-node (foldl (lambda (x y) (if (null? y) x
+                                         (if (> (uct-formula x search-tree)
+                                                (uct-formula y search-tree)) x y)))
+                       null (mm_node-sub-trees search-tree)))
+    (mm_node-move best-node))
+  (define (run)
+    (cond ((> (- (current-inexact-milliseconds) start-time) time) (select-best))
+          (else (let ((uct-path (uct-move-list search-tree '())))
+                  (begin (set! search-tree (update search-tree (cdr uct-path)))
+                         (run))))))
+  (begin (set! search-tree (update search-tree (cdr mm-path)))
+         (run)))

@@ -3,6 +3,7 @@
 (require 2htdp/image)
 (require 2htdp/universe)
 (require "board_utilities.rkt")
+(require "go_engine.rkt")
 
 (clear_board)
 
@@ -102,12 +103,6 @@
 ;          [else (cons -1 -1)])))
 ;  (tryh 1 1))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;this checks if the board is already filled at that position
-;is yes return true, else check the complicated rules like ko, dragon and so on
-;(define (check_valid x y clr board_pos)
-;  (if (equal? (2d_vec_get board_pos x y) 0) #t #f))
-
 
 (define board_state%
   (class object%
@@ -127,6 +122,7 @@
     (define start-phase #t) ;;in case the player is playing against the computer then this
     ;;defines the first few standard moves
     (define corner-picked -1)
+    (define last-non-pass (cons 1 1))
 
     (define/public (set_1_player! val)
       (begin
@@ -152,7 +148,12 @@
         [start-phase (34-corner-strategy)]
         [(< (length moves) 3) (begin
                                 (set! start-phase #t)
-                                (34-corner-strategy))]))
+                                (34-corner-strategy))]
+        [else (let*
+                ((ai-clr (if (= 1 1_player_clr) 2 1))
+                 (aimove (ai last-non-pass ai-clr 5000))
+                 (temp (next-turn)))
+                (try-move-at (car aimove) (cdr aimove) ai-clr))]))
 
     (define (custom-pos val)
       (if (> val 3) -1 1))
@@ -314,7 +315,7 @@
              (if 1_player
                  (begin
                    (set! last_mv_pass #t)
-                   (comp-move!)
+                   (end_game)
                    (next-turn))
                  (begin
                    (set! last_mv_pass #t)
@@ -336,6 +337,7 @@
                  (if valid-move
                      (begin
                        (next-turn)
+                       (set! last-non-pass indices)
                        (comp-move!))
                      (void)))))]))
 
