@@ -4,7 +4,6 @@
 (require 2htdp/universe)
 (require "board_utilities.rkt")
 
-
 (clear_board)
 
 (define (2d_vec_set! vec x y val)
@@ -37,8 +36,12 @@
 ;; the board.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (click-pos->index x y)
-  (cons (exact-round (/ (* (- x min-xy) (sub1 size)) (- max-xy min-xy)))
-        (exact-round (/ (* (- y min-xy) (sub1 size)) (- max-xy min-xy)))))
+  (let*
+      ([x (exact-round (/ (* (- x min-xy) (sub1 size)) (- max-xy min-xy)))]
+       [y (exact-round (/ (* (- y min-xy) (sub1 size)) (- max-xy min-xy)))])
+    (if (and (in_range x 0 8) (in_range y 0 8)) (cons x y)
+        (cons #f #f))))
+    
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Converts indices on board
@@ -58,11 +61,11 @@
 (define ylp2 255)
 (define yhp2 275)
 (define undo-pass (beside (text/font "Undo        " 20 "black"
-                                        "Gill Sans" "modern" "normal"
-                                        "bold" #f)
-                             (text/font "      Pass" 20 "black"
-                                        "Gill Sans" "modern" "normal"
-                                        "bold" #f)))
+                                     "Gill Sans" "modern" "normal"
+                                     "bold" #f)
+                          (text/font "      Pass" 20 "black"
+                                     "Gill Sans" "modern" "normal"
+                                     "bold" #f)))
 (define board-img (above (scale (/ 380 2209) (bitmap "Go_board_9x9.png")) undo-pass ))
 (define stone-radius 17)
 (define black-stone (circle stone-radius "solid" "black"))
@@ -80,6 +83,11 @@
                                         "Gill Sans" "modern" "normal"
                                         "bold" #f)))
 
+(define (undo-click x y)
+  (and (in_range x 91 135) (in_range y 388 397)))
+
+(define (pass-click x y)
+  (and (in_range x 248 292) (in_range y 388 397)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This function generates the best possible move given the board_pos and for the
@@ -110,7 +118,7 @@
     (define moves '())
     (define 1_player #t)  ;;if the game is two player then this is false
     (define turn 1)  ;;can be 1 or 2 depending on the color, as the color is important
-                     ;;if now black color turn then it is true else it is fasle
+    ;;if now black color turn then it is true else it is fasle
     (define error_msg "")  ;;the error msg will be stored here
     (define last_mv_pass #f)
     (define state 0)
@@ -217,11 +225,35 @@
          (cond
            [(and (in_range x xlp1 xhp1) (in_range y ylp1 yhp1)) (set_1_player_clr! 2)]
            [(and (in_range x xlp2 xhp2) (in_range y ylp2 yhp2)) (set_1_player_clr! 1)])]
+        [(and (= state 2) (undo-click x y) (> (length moves) 1))
+         (if 1_player
+         (begin
+           (undo_previous_move)
+           (undo_previous_move)
+           (set! moves (cddr moves))
+           (set! last_mv_pass #f))
+         (begin
+           (undo_previous_move)
+           (next-turn)
+           (set! moves (cdr moves))))]
+        [(and (= state 2) (pass-click x y))
+         (if last_mv_pass (end_game)
+             (if 1_player
+                 (begin
+                   (set! last_mv_pass #t)
+                   ;(comp-move!)
+                   (next-turn))
+                 (begin
+                   (set! last_mv_pass #t)
+                   (set! moves (cons '(-1 -1 turn) moves))
+                   (next-turn))))]
         [(and (= state 2) (not 1_player))
-         (let* ((indices (click-pos->index x y))
-                (current-turn turn)
-                (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
-           (if valid-move (next-turn) (void)))]
+         (let* ((indices (click-pos->index x y)))
+           (if (equal? (car indices) #f) (void)
+               (let*
+                   ((current-turn turn)
+                    (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
+                 (if valid-move (next-turn) (void)))))]
         [(and (= state 2) 1_player) (void)]))
 
     (super-new)))

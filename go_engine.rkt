@@ -196,4 +196,3 @@
   (cond
     [(= curr-depth max-depth) (terr-counter)]
     [else (helper 1)]))
->>>>>>> master/master
