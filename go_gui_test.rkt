@@ -123,6 +123,7 @@
     ;;defines the first few standard moves
     (define corner-picked -1)
     (define last-non-pass (cons 1 1))
+    (define now-classy-move #f)
 
     (define/public (set_1_player! val)
       (begin
@@ -151,7 +152,7 @@
                                 (34-corner-strategy))]
         [else (let*
                 ((ai-clr (if (= 1 1_player_clr) 2 1))
-                 (aimove (ai last-non-pass ai-clr 5000))
+                 (aimove (ai last-non-pass ai-clr 2000))
                  (temp (next-turn)))
                 (try-move-at (car aimove) (cdr aimove) ai-clr))]))
 
@@ -288,6 +289,13 @@
                                 (set! moves (cons (list bx by current-turn) moves))
                                 #t))
             (else #f)))
+
+    (define/public (to-check-ai)
+      (if now-classy-move
+          (begin
+            (set! now-classy-move #f)
+             (comp-move!))
+          (void)))
     
     (define/public (on_mouse x y)
       (cond
@@ -338,7 +346,7 @@
                      (begin
                        (next-turn)
                        (set! last-non-pass indices)
-                       (comp-move!))
+                       (set! now-classy-move #t))
                      (void)))))]))
 
     (super-new)))
@@ -347,6 +355,11 @@
 
 (define (render board)
   (send board to_draw))
+
+(define (check-ai board)
+  (begin
+    (send board to-check-ai)
+    board))
 
 (define (try_mouse board x y click)
   (cond
@@ -357,4 +370,5 @@
 
 (big-bang go_board
   (to-draw render)
+  (on-tick check-ai)
   (on-mouse try_mouse))
