@@ -110,7 +110,7 @@
   (define choose-move (random))
   (define their-libs (find-lib-wrapper (car last-move)
                                        (cdr last-move)))
-  (cond ((and (< choose-move 0.8) (<= (length their-libs) 3)) (car their-libs))
+  (cond ((and (< choose-move 0.8) (<= (length their-libs) 2)) (car their-libs))
         (else (let ((x (random size))
                     (y (random size))
                     (my-libs (remove-duplicates
@@ -242,11 +242,12 @@
            (cond ((= attempt 1) ;; simulate
                   (let* ((sim-result
                           (sim-for-time
-                           200
+                           50
                            (board->2dlist)
                            (next-turn (mm_node-turn tree))
                            (mm_node-move tree)
-                           (/ (* 2 (- (* size size) total-moves)) 3)))
+                           10))
+                           ;(/ (* 2 (- (* size size) total-moves)) 3)))
                          (scores (calculate-scores sim-result))
                          (new-node (mm_node
                                     (next-turn (mm_node-turn tree))
@@ -323,8 +324,6 @@
   (define mm-time (current-inexact-milliseconds))
   (define search-tree (build-minimax turn 6 0 last-move))
   (define start-time (current-inexact-milliseconds))
-  (displayln "MiniMax OVER")
-  (displayln (- start-time mm-time))
   (define mm-path (mm-move-list search-tree '()))
   (define (select-best)
     (define best-node (foldl (lambda (x y) (if (null? y) x
@@ -339,7 +338,6 @@
                          (run))))))
   (begin (set! total-moves (+ 2 total-moves))
          (set! search-tree (update search-tree (cdr mm-path)))
-         (displayln "Move almost done")
          (run)))
 
 
