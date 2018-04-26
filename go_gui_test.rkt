@@ -61,10 +61,13 @@
 (define xhp2 220)
 (define ylp2 255)
 (define yhp2 275)
-(define undo-pass (beside (text/font "Undo        " 20 "black"
+(define undo-pass (beside (text/font "Undo   " 20 "black"
                                      "Gill Sans" "modern" "normal"
                                      "bold" #f)
-                          (text/font "      Pass" 20 "black"
+                          (text/font "  End  " 20 "black"
+                                     "Gill Sans" "modern" "normal"
+                                     "bold" #f)
+                          (text/font "   Pass" 20 "black"
                                      "Gill Sans" "modern" "normal"
                                      "bold" #f)))
 (define board-img (above (scale (/ 380 2209) (bitmap "Go_board_9x9.png")) undo-pass ))
@@ -85,10 +88,13 @@
                                         "bold" #f)))
 
 (define (undo-click x y)
-  (and (in_range x 91 135) (in_range y 388 397)))
+  (and (in_range x 61 105) (in_range y 388 397)))
 
 (define (pass-click x y)
-  (and (in_range x 248 292) (in_range y 388 397)))
+  (and (in_range x 278 322) (in_range y 388 397)))
+
+(define (force-click x y)
+  (and (in_range x 175 225) (in_range y 388 397)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;This function generates the best possible move given the board_pos and for the
@@ -124,6 +130,7 @@
     (define corner-picked -1)
     (define last-non-pass (cons 1 1))
     (define now-classy-move #f)
+    (define 1-plyr-cntr #f)
 
     (define/public (set_1_player! val)
       (begin
@@ -146,15 +153,22 @@
 
     (define (comp-move!)
       (cond
-        [start-phase (34-corner-strategy)]
+        [start-phase (begin
+                       (set! last_mv_pass #f)
+                       (34-corner-strategy))]
         [(< (length moves) 3) (begin
+                                (set! last_mv_pass #f)
                                 (set! start-phase #t)
                                 (34-corner-strategy))]
         [else (let*
                 ((ai-clr (if (= 1 1_player_clr) 2 1))
                  (aimove (ai last-non-pass ai-clr 2000))
                  (temp (next-turn)))
-                (try-move-at (car aimove) (cdr aimove) ai-clr))]))
+                (if (= (car aimove) -1)
+                    (if last_mv_pass (end_game) (void))
+                    (begin
+                      (try-move-at (car aimove) (cdr aimove) ai-clr)
+                      (set! last_mv_pass #f))))]))
 
     (define (custom-pos val)
       (if (> val 3) -1 1))
@@ -268,8 +282,53 @@
                             (else (overlay-stones (+ i 1) j img)))))))
       (overlay-stones 0 0 board-img))
 
+    (define (draw-winner winner winpts loser losepts)
+      (define win-text (above (text/font
+                               (if (= winpts losepts)
+                                   ""
+                                  (string-append winner " wins")) 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)
+                             (text/font (string-append winner " points " (number->string winpts)) 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)
+                             (text/font (string-append loser " points " (number->string losepts)) 20 "black"
+                                        "Gill Sans" "modern" "normal"
+                                        "bold" #f)))
+      (overlay/offset
+       stone-choice
+       0 -50
+       (overlay/offset
+        win-text 0 50
+        (overlay
+         (rectangle 350 350
+                    "outline"
+                    "black")
+         (overlay/offset
+          go-text 0 135
+          (empty-scene
+           400 400
+           (color 220 179 92)))))))
+
     (define (to_draw_end)
-      (text (symbol->string 'The_end) 40 'red))
+      (if 1_player
+          (let*
+              ([ai_clr (if (= 1_player_clr 1) 2 1)]
+               [pts (count-territories (board->2dlist))]
+               [ai_ptr (if (= ai_clr 1) (car pts) (cadr pts))]
+               [plyr_pts (if (= ai_clr 2) (car pts) (cadr pts))]
+               [ai_cap (if (= ai_clr 1) (total_white_capture) (total_black_capture))]
+               [ply_cap (if (= ai_clr 2) (total_white_capture) (total_black_capture))]
+               [total_ai (+ ai_ptr ai_cap)]
+               [total_pl (+ plyr_pts ply_cap)])
+            (if (> total_ai total_pl) (draw-winner "Computer" total_ai "Human" total_pl)
+                (draw-winner "Human" total_pl "Computer" total_ai)))
+          (let*
+              ([pts (count-territories (board->2dlist))]
+               [black_pts (+ (cadr pts) (total_black_capture))]
+               [white_pts (+ (car pts) (total_white_capture))])
+            (if (> black_pts white_pts) (draw-winner "Black" black_pts "White" white_pts)
+                (draw-winner "White" white_pts "Black" black_pts)))))
 
     (define (end_game)
       (begin
@@ -296,6 +355,19 @@
             (set! now-classy-move #f)
              (comp-move!))
           (void)))
+
+    (define (pass)
+      (if last_mv_pass (end_game)
+             (if 1_player
+                 (begin
+                   (set! last_mv_pass #t)
+                   (set! 1-plyr-cntr #t)
+                   (next-turn)
+                   (set! now-classy-move #t))
+                 (begin
+                   (set! last_mv_pass #t)
+                   (set! moves (cons '(-1 -1 turn) moves))
+                   (next-turn)))))
     
     (define/public (on_mouse x y)
       (cond
@@ -311,29 +383,21 @@
          (if 1_player
              (begin
                (undo_previous_move)
-               (undo_previous_move)
+               (if (not 1-plyr-cntr) (undo_previous_move) (void))
                (set! moves (cddr moves))
                (set! last_mv_pass #f))
              (begin
                (undo_previous_move)
                (next-turn)
                (set! moves (cdr moves))))]
-        [(and (= state 2) (pass-click x y))
-         (if last_mv_pass (end_game)
-             (if 1_player
-                 (begin
-                   (set! last_mv_pass #t)
-                   (end_game)
-                   (next-turn))
-                 (begin
-                   (set! last_mv_pass #t)
-                   (set! moves (cons '(-1 -1 turn) moves))
-                   (next-turn))))]
+        [(and (= state 2) (pass-click x y)) (pass)]
+        [(and (= state 2) (force-click x y)) (end_game)]
         [(and (= state 2) (not 1_player))
          (let* ((indices (click-pos->index x y)))
            (if (equal? (car indices) #f) (void)
                (let*
                    ((current-turn turn)
+                    (te (set! last_mv_pass #f))
                     (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
                  (if valid-move (next-turn) (void)))))]
         [(and (= state 2) 1_player)
@@ -341,6 +405,8 @@
            (if (equal? (car indices) #f) (void)
                (let*
                    ((current-turn turn)
+                    (te (set! last_mv_pass #f))
+                    (te (set! 1-plyr-cntr #f))
                     (valid-move (try-move-at (car indices) (cdr indices) current-turn)))
                  (if valid-move
                      (begin
