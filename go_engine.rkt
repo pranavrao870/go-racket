@@ -110,7 +110,7 @@
   (define choose-move (random))
   (define their-libs (find-lib-wrapper (car last-move)
                                        (cdr last-move)))
-  (cond ((and (< choose-move 0.8) (<= (length their-libs) 3)) (car their-libs))
+  (cond ((and (< choose-move 0.8) (<= (length their-libs) 2)) (car their-libs))
         (else (let ((x (random size))
                     (y (random size))
                     (my-libs (remove-duplicates
@@ -242,7 +242,7 @@
            (cond ((= attempt 1) ;; simulate
                   (let* ((sim-result
                           (sim-for-time
-                           100
+                           50
                            (board->2dlist)
                            (next-turn (mm_node-turn tree))
                            (mm_node-move tree)
